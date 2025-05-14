@@ -22,7 +22,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     },
     {
       'title': 'Check-In Nearby',
-      'description': 'Let others know where you are and what you're in the mood for.',
+      'description': "Let others know where you are and what you're in the mood for.",
     },
     {
       'title': 'Start a Hangout',
@@ -37,7 +37,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'description': 'Appear offline, hide your distance, and manage your mood.',
     },
     {
-      'title': 'Let's Get Started',
+      'title': "Let's Get Started",
       'description': 'Create your profile and discover your community.',
     },
   ];
