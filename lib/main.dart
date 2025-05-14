@@ -109,7 +109,7 @@ class MyApp extends StatelessWidget {
           authService: authService,
           biometricService: biometricService,
           emailVerificationService: emailVerificationService,
-        ),
+      ),
         '/supabase_test': (context) => const SupabaseTestScreen(),
       },
     );
