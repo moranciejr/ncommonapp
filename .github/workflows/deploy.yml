@@ -13,6 +13,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
+    - name: Remove pre-installed Flutter
+      run: sudo rm -rf /opt/hostedtoolcache/flutter
+    
     - name: Setup Flutter
       uses: flutter-actions/setup-flutter@v2
       with:
