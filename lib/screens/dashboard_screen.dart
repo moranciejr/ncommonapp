@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
-import '../services/supabase_browser_client.dart';
+import '../services/chat_service.dart';
 import 'todo_screen.dart';
-import 'chat_screen.dart';
+import '../services/supabase_service.dart';
+import '../services/todo_service.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final ChatService chatService;
+  
+  const DashboardScreen({
+    super.key,
+    required this.chatService,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -14,7 +20,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final _analytics = FirebaseAnalytics.instance;
-  late final SupabaseBrowserClient _supabase;
+  late final supabase = SupabaseService().client;
   int _selectedIndex = 0;
   bool _isLoading = false;
 
@@ -28,7 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   Future<void> _initializeSupabase() async {
     setState(() => _isLoading = true);
     try {
-      _supabase = await SupabaseBrowserClient.getInstance();
+      // _supabase = await SupabaseBrowserClient.getInstance();
     } finally {
       setState(() => _isLoading = false);
     }
@@ -48,6 +54,22 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       name: 'dashboard_tab_changed',
       parameters: {'tab_index': index},
     );
+  }
+
+  Future<void> _handleSignOut() async {
+    try {
+      await widget.chatService.disconnectUser();
+      // await _supabase.signOut();
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -73,6 +95,32 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             Tab(icon: Icon(Icons.person), text: 'Profile'),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.chat),
+            onPressed: () {
+              Navigator.pushNamed(context, '/chat');
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _handleSignOut,
+          ),
+          IconButton(
+            icon: const Icon(Icons.bug_report),
+            tooltip: 'Test Stream Chat',
+            onPressed: () {
+              Navigator.pushNamed(context, '/stream_test');
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.mail_outline),
+            tooltip: 'Inbox',
+            onPressed: () {
+              Navigator.pushNamed(context, '/inbox');
+            },
+          ),
+        ],
       ),
       body: TabBarView(
         controller: _tabController,
@@ -83,14 +131,14 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
           
           // Tasks Tab
-          TodoScreen(todoService: _supabase.client),
+          TodoScreen(todoService: TodoService(supabase)),
           
           // Social Tab
-          const ChatScreen(),
+          // const ChatScreen(),
           
           // Profile Tab
           FutureBuilder(
-            future: _supabase.from('users').select().single(),
+            future: supabase.from('users').select().maybeSingle(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -153,10 +201,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     FutureBuilder(
-                      future: _supabase.client
-                          .from('user_interests')
+                      future: supabase.from('user_interests')
                           .select('interest_id')
-                          .eq('user_id', _supabase.currentUser?.id),
+                          .eq('user_id', supabase.auth.currentUser?.id),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) {
                           return const Center(
@@ -172,10 +219,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                             .toList();
                             
                         return FutureBuilder(
-                          future: _supabase.client
-                              .from('interests')
+                          future: supabase.from('interests')
                               .select()
-                              .in_('id', interestIds),
+                              .inFilter('id', interestIds),
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) {
                               return const Center(

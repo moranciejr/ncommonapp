@@ -5,6 +5,8 @@ import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
 import '../services/email_verification_service.dart';
 import '../constants/auth_constants.dart';
+import '../services/supabase_service.dart';
+import '../services/firebase_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});

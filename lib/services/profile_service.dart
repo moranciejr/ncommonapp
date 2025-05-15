@@ -41,7 +41,7 @@ class ProfileService {
       'interests': interests,
       'profile_picture_url': profilePictureUrl,
       'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', userId);
+    }).eq('id', userId).select().single();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('profile_complete', true);

@@ -1,94 +1,157 @@
-import 'package:stream_chat_flutter/stream_chat_flutter.dart';
+import 'package:stream_chat_flutter/stream_chat_flutter.dart' as stream;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../utils/platform_config.dart';
 
 class ChatService {
-  final StreamChatClient client;
-  final FirebaseAnalytics analytics;
-  final SupabaseClient supabase;
+  static final ChatService _instance = ChatService._internal();
+  factory ChatService() => _instance;
+  ChatService._internal();
 
-  ChatService({
-    required this.client,
-    required this.analytics,
-    required this.supabase,
-  });
+  late final stream.StreamChatClient _client;
+  late final SupabaseClient _supabase;
+  bool _isInitialized = false;
+  late FirebaseAnalytics _analytics;
 
-  Future<void> connectUser() async {
+  Future<void> setup(FirebaseAnalytics analytics) async {
+    if (_isInitialized) return;
+
+    _analytics = analytics;
+    _supabase = Supabase.instance.client;
+    _client = stream.StreamChatClient(
+      PlatformConfig.platformConfig['streamApiKey'] as String,
+      logLevel: stream.Level.INFO,
+    );
+    _isInitialized = true;
+  }
+
+  Future<String> getStreamToken(String userId) async {
+    if (!_isInitialized) await setup(_analytics);
+
     try {
-      final userId = supabase.auth.currentUser?.id;
-      if (userId == null) {
-        throw Exception('No authenticated user found');
+      final response = await _supabase.functions.invoke(
+        'generate-stream-token',
+        body: {'userId': userId},
+      );
+
+      if (response.status != 200) {
+        throw Exception('Failed to generate Stream token: ${response.data}');
       }
 
-      final response = await supabase.functions.invoke(
-        'generate-stream-token',
-        body: {'user_id': userId},
-      );
-      final token = response.data['token'];
+      return response.data['token'] as String;
+    } catch (e) {
+      throw Exception('Error generating Stream token: $e');
+    }
+  }
 
-      await client.connectUser(
-        User(id: userId),
+  Future<void> connectUser(String userId, String username) async {
+    if (!_isInitialized) await setup(_analytics);
+
+    try {
+      final token = await getStreamToken(userId);
+      await _client.connectUser(
+        stream.User(id: userId, extraData: {'name': username}),
         token,
       );
 
-      analytics.logEvent(
+      _analytics.logEvent(
         name: 'chat_user_connected',
-        parameters: {'user_id': userId},
+        parameters: {'user_id': userId} as Map<String, Object>,
       );
     } catch (e) {
-      analytics.logEvent(
+      _analytics.logEvent(
         name: 'chat_connection_error',
-        parameters: {'error': e.toString()},
+        parameters: {'error': e.toString()} as Map<String, Object>,
       );
+      debugPrint('Error connecting user: $e');
       rethrow;
     }
   }
 
-  Future<List<Channel>> getUserChannels() async {
+  Future<void> connectCurrentUser() async {
     try {
-      final channels = await client.queryChannels(
-        filter: Filter.in_('members', [client.state.currentUser!.id]),
-        sort: const [SortOption('last_message_at')],
+      final supabaseUser = _supabase.auth.currentUser;
+      if (supabaseUser == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      final response = await _supabase.functions.invoke(
+        'generate-stream-token',
+        body: {'user_id': supabaseUser.id},
       );
-      return channels;
+      final token = response.data['token'];
+
+      await connectUser(supabaseUser.id, supabaseUser.email ?? supabaseUser.id);
     } catch (e) {
-      analytics.logEvent(
-        name: 'chat_query_error',
-        parameters: {'error': e.toString()},
+      _analytics.logEvent(
+        name: 'chat_connection_error',
+        parameters: {'error': e.toString()} as Map<String, Object>,
       );
+      debugPrint('Error connecting current user: $e');
       rethrow;
     }
   }
 
-  Future<Channel> createChannel({
+  Future<void> disconnect() async {
+    if (!_isInitialized) return;
+    await _client.disconnectUser();
+  }
+
+  Future<stream.Channel> createChannel({
     required String channelId,
+    required String channelType,
+    required List<String> memberIds,
     String? name,
-    List<String>? members,
+    String? image,
   }) async {
     try {
-      final channel = client.channel(
-        'messaging',
+      final channel = _client.channel(
+        channelType,
         id: channelId,
         extraData: {
-          'name': name ?? 'New Channel',
-          'members': members ?? [client.state.currentUser!.id],
+          if (name != null) 'name': name,
+          if (image != null) 'image': image,
+          'members': memberIds,
         },
       );
 
-      await channel.create();
-      
-      analytics.logEvent(
+      await channel.watch();
+      _analytics.logEvent(
         name: 'chat_channel_created',
-        parameters: {'channel_id': channelId},
+        parameters: {'channel_id': channelId} as Map<String, Object>,
       );
-
       return channel;
     } catch (e) {
-      analytics.logEvent(
+      _analytics.logEvent(
         name: 'chat_channel_error',
-        parameters: {'error': e.toString()},
+        parameters: {'error': e.toString()} as Map<String, Object>,
       );
+      debugPrint('Error creating channel: $e');
       rethrow;
     }
+  }
+
+  Stream<List<stream.Channel>> getChannels() {
+    try {
+      return _client.queryChannels(
+        filter: stream.Filter.in_('members', [_client.state.currentUser?.id ?? '']),
+      ).map((channels) => channels.toList());
+    } catch (e) {
+      _analytics.logEvent(
+        name: 'chat_query_error',
+        parameters: {'error': e.toString()} as Map<String, Object>,
+      );
+      debugPrint('Error getting channels: $e');
+      rethrow;
+    }
+  }
+
+  stream.StreamChatClient get client {
+    if (!_isInitialized) {
+      throw Exception('ChatService not initialized. Call setup() first.');
+    }
+    return _client;
   }
 } 

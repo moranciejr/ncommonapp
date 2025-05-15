@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
             .from('users')
             .select()
             .eq('id', response.user!.id)
-            .single();
+            .maybeSingle();
 
         final profileComplete = userData != null && 
             userData['dob'] != null && 

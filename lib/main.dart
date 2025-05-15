@@ -1,12 +1,14 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/profile_completion_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/supabase_test_screen.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'services/auth_service.dart';
 import 'services/biometric_service.dart';
@@ -14,19 +16,22 @@ import 'services/email_verification_service.dart';
 import 'services/todo_service.dart';
 import 'services/supabase_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'screens/supabase_test_screen.dart';
+import 'package:stream_chat_flutter/stream_chat_flutter.dart';
+import 'services/chat_service.dart';
+import 'screens/stream_test_screen.dart';
+import 'screens/chat_inbox_screen.dart';
+
+final supabaseUrl = dotenv.env['SUPABASE_URL'];
+final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(); // Loads the .env file
   
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
-  
-  // Initialize other services
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '',
-    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
-  );
+  // Initialize SupabaseService
+  final supabaseService = SupabaseService();
+  await supabaseService.initialize();
+  final supabase = supabaseService.client;
   
   // Initialize Firebase
   await Firebase.initializeApp(
@@ -42,13 +47,9 @@ Future<void> main() async {
   final analytics = FirebaseAnalytics.instance;
   await analytics.setAnalyticsCollectionEnabled(true);
   
-  // Initialize Supabase
-  final supabaseService = await SupabaseService.getInstance();
-  final supabase = supabaseService.client;
-  
   // Initialize services
   final authService = AuthService(supabase, analytics);
-  final biometricService = BiometricService();
+  final biometricService = BiometricService(analytics);
   final emailVerificationService = EmailVerificationService(supabase, analytics);
   final todoService = TodoService(supabase);
   
@@ -65,12 +66,17 @@ Future<void> main() async {
     }
   }
   
+  final chatService = ChatService();
+  chatService.setup(analytics: analytics, supabase: supabase);
+  await chatService.initialize(dotenv.env['STREAM_API_KEY'] ?? '');
+  
   runApp(MyApp(
     authService: authService,
     biometricService: biometricService,
     emailVerificationService: emailVerificationService,
     todoService: todoService,
     startRoute: startRoute,
+    chatService: chatService,
   ));
 }
 
@@ -80,6 +86,7 @@ class MyApp extends StatelessWidget {
   final EmailVerificationService emailVerificationService;
   final TodoService todoService;
   final String startRoute;
+  final ChatService chatService;
   
   const MyApp({
     super.key,
@@ -88,6 +95,7 @@ class MyApp extends StatelessWidget {
     required this.emailVerificationService,
     required this.todoService,
     required this.startRoute,
+    required this.chatService,
   });
 
   @override
@@ -98,19 +106,25 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
+      builder: (context, child) {
+        return StreamChat(
+          client: chatService.client,
+          child: child!,
+        );
+      },
       initialRoute: startRoute,
       routes: {
         '/onboarding': (_) => const OnboardingScreen(),
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignUpScreen(),
-        '/profile': (context) => const ProfileCompletionScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
-        '/auth': (context) => AuthScreen(
-          authService: authService,
-          biometricService: biometricService,
-          emailVerificationService: emailVerificationService,
-      ),
+        '/profile': (context) => const ProfileScreen(),
+        '/dashboard': (context) => DashboardScreen(
+          chatService: chatService,
+        ),
+        '/auth': (context) => const AuthScreen(),
         '/supabase_test': (context) => const SupabaseTestScreen(),
+        '/stream_test': (context) => const StreamTestScreen(),
+        '/inbox': (context) => ChatInboxScreen(client: ChatService().client),
       },
     );
   }

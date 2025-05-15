@@ -43,7 +43,6 @@ void main() {
     when(mockResponse.data).thenReturn({'token': 'test_token'});
 
     chatService = ChatService(
-      client: mockClient,
       analytics: mockAnalytics,
       supabase: mockSupabase,
     );

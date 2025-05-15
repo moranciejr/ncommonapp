@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../services/supabase_browser_client.dart';
 
 class SupabaseTestScreen extends StatefulWidget {
   const SupabaseTestScreen({super.key});
@@ -14,126 +13,59 @@ class _SupabaseTestScreenState extends State<SupabaseTestScreen> {
   Map<String, dynamic>? _testResults;
   bool _isLoading = false;
 
+  // Placeholder for removed SupabaseBrowserClient logic
   Future<void> _runTests() async {
     setState(() {
       _isLoading = true;
-      _testResults = null;
+      _testResults = {'status': 'info', 'message': 'SupabaseBrowserClient removed.'};
     });
-
-    try {
-      final client = await SupabaseBrowserClient.getInstance();
-      final results = await client.testConnection();
-      setState(() {
-        _testResults = results;
-      });
-    } catch (e) {
-      setState(() {
-        _testResults = {
-          'status': 'error',
-          'message': e.toString(),
-        };
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    await Future.delayed(const Duration(seconds: 1));
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   Future<void> _signIn() async {
     setState(() {
       _isLoading = true;
-      _testResults = null;
+      _testResults = {'status': 'info', 'message': 'SupabaseBrowserClient removed.'};
     });
-
-    try {
-      final client = await SupabaseBrowserClient.getInstance();
-      final response = await client.signInWithPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
-      setState(() {
-        _testResults = {
-          'status': 'success',
-          'message': 'Signed in successfully',
-          'user': response.user?.email,
-        };
-      });
-    } catch (e) {
-      setState(() {
-        _testResults = {
-          'status': 'error',
-          'message': e.toString(),
-        };
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    await Future.delayed(const Duration(seconds: 1));
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Supabase Test'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      appBar: AppBar(title: const Text('Supabase Test Screen')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ElevatedButton(
-              onPressed: _isLoading ? null : _runTests,
-              child: Text(_isLoading ? 'Running Tests...' : 'Run Connection Tests'),
-            ),
-            const SizedBox(height: 16),
             TextField(
               controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Email'),
             ),
-            const SizedBox(height: 8),
             TextField(
               controller: _passwordController,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Password'),
               obscureText: true,
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _isLoading ? null : _signIn,
-              child: Text(_isLoading ? 'Signing In...' : 'Sign In'),
+              onPressed: _isLoading ? null : _runTests,
+              child: const Text('Run Supabase Tests'),
             ),
-            if (_testResults != null) ...[
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Test Results',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text('Status: ${_testResults!['status']}'),
-                      Text('Message: ${_testResults!['message']}'),
-                      if (_testResults!['user'] != null)
-                        Text('User: ${_testResults!['user']}'),
-                      if (_testResults!['session'] != null)
-                        Text('Session: ${_testResults!['session']}'),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ElevatedButton(
+              onPressed: _isLoading ? null : _signIn,
+              child: const Text('Sign In (Test)'),
+            ),
+            const SizedBox(height: 16),
+            if (_isLoading) const CircularProgressIndicator(),
+            if (_testResults != null)
+              Text(_testResults!['message'] ?? '', style: const TextStyle(color: Colors.blue)),
           ],
         ),
       ),

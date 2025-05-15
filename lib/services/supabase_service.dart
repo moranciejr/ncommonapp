@@ -1,31 +1,24 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class SupabaseService {
-  static SupabaseService? _instance;
+  static final SupabaseService _instance = SupabaseService._internal();
+  factory SupabaseService() => _instance;
+  SupabaseService._internal();
+
   late final SupabaseClient client;
   late final SharedPreferences _prefs;
 
   static const String _supabaseUrl = 'https://yucfdziwquyzpchkmxjk.supabase.co';
   static const String _supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1Y2Zkeml3cXV5enBjaGtteGprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxNzI1NTYsImV4cCI6MjA2Mjc0ODU1Nn0.pn861ClAWPfkZvxOyl_ROasgZregrrVJhmVemWzx3hg';
 
-  SupabaseService._();
-
-  static Future<SupabaseService> getInstance() async {
-    if (_instance == null) {
-      _instance = SupabaseService._();
-      await _instance!._initialize();
-    }
-    return _instance!;
-  }
-
-  Future<void> _initialize() async {
+  Future<void> initialize() async {
     _prefs = await SharedPreferences.getInstance();
     
     await Supabase.initialize(
-      url: _supabaseUrl,
-      anonKey: _supabaseAnonKey,
-      authCallbackUrlHostname: 'login-callback',
+      url: dotenv.env['SUPABASE_URL'] ?? '',
+      anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
       debug: true,
     );
 
@@ -55,7 +48,7 @@ class SupabaseService {
   Future<void> _handleSignedIn(Session? session) async {
     if (session != null) {
       await _prefs.setString('supabase_auth_token', session.accessToken);
-      await _prefs.setString('supabase_refresh_token', session.refreshToken);
+      await _prefs.setString('supabase_refresh_token', session.refreshToken ?? '');
     }
   }
 
@@ -67,7 +60,7 @@ class SupabaseService {
   Future<void> _handleTokenRefreshed(Session? session) async {
     if (session != null) {
       await _prefs.setString('supabase_auth_token', session.accessToken);
-      await _prefs.setString('supabase_refresh_token', session.refreshToken);
+      await _prefs.setString('supabase_refresh_token', session.refreshToken ?? '');
     }
   }
 
@@ -87,4 +80,35 @@ class SupabaseService {
   bool isAuthenticated() {
     return client.auth.currentSession != null;
   }
+
+  Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+  }) async {
+    return await client.auth.signUp(
+      email: email,
+      password: password,
+    );
+  }
+
+  Future<AuthResponse> signIn({
+    required String email,
+    required String password,
+  }) async {
+    return await client.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  Future<AuthResponse> signInWithGoogle() async {
+    return await client.auth.signInWithOAuth(
+      Provider.google,
+      redirectTo: 'io.supabase.ncommonapp://login-callback/',
+    );
+  }
+
+  User? get currentUser => client.auth.currentUser;
+
+  Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
 } 
